@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -27,6 +27,10 @@ interface MenuItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
+}
+
+interface UserProfile {
+  role: string;
 }
 
 const menuItems: MenuItem[] = [
@@ -68,9 +72,33 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user } = useUser();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  // Get user role from user metadata or default
-  const userRole = user?.publicMetadata?.role as string || 'area sales supervisor';
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await fetch('/api/auth/profile');
+        if (response.ok) {
+          const result = await response.json();
+          setUserProfile(result.data);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
+
+  // Get user role - fallback to metadata or default
+  const userRole = userProfile?.role || 
+                   (user?.publicMetadata?.role as string) || 
+                   'area sales supervisor';
 
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.roles) return true;
@@ -152,7 +180,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {user?.firstName} {user?.lastName}
                   </p>
                   <p className="text-xs text-gray-400 truncate">
-                    {userRole}
+                    {profileLoading ? 'Loading...' : (
+                      userRole === 'superadmin' ? 'Super Admin' :
+                      userRole === 'area sales manager' ? 'Area Sales Manager' :
+                      userRole === 'area sales supervisor' ? 'Area Sales Supervisor' :
+                      userRole
+                    )}
                   </p>
                 </div>
               </div>

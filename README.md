@@ -1,36 +1,160 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Inventory Dashboard
+
+A modern web application for monitoring stock quantities of raw materials and finished goods with role-based access control.
+
+## Features
+
+- **Real-time Inventory Monitoring**: Track stock levels for raw materials and finished goods
+- **Role-based Access Control**: Three user roles with different permissions
+  - Superadmin: Full access to user management, area management, and all inventory
+  - Area Sales Manager: Access to assigned area inventory and team management
+  - Area Sales Supervisor: View access to assigned area inventory
+- **User Management**: Superadmins can assign roles and areas to users
+- **Area Management**: Manage different geographical or organizational areas
+- **Responsive Design**: Mobile-first approach with responsive UI
+- **Secure Authentication**: Powered by Clerk with user profile synchronization
+
+## Technology Stack
+
+- **Frontend**: Next.js 15 with App Router, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui component library
+- **Authentication**: Clerk
+- **Database**: Supabase (PostgreSQL)
+- **Deployment**: Ready for Vercel deployment
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18+ and npm
+- Supabase account
+- Clerk account
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd dashboard_03/project
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   Create a `.env.local` file in the project directory:
+   ```env
+   # Clerk Configuration
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+   CLERK_SECRET_KEY=your_clerk_secret_key
+   CLERK_WEBHOOK_SECRET=your_clerk_webhook_secret
+
+   # Supabase Configuration
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   ```
+
+4. **Set up the database**
+   Run the SQL commands from `database_schema.sql` in your Supabase SQL editor to create the required tables and sample data.
+
+5. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Database Schema
+
+The application uses four main tables:
+
+- **master_areas**: Stores area information
+- **user_profiles**: User profile data with role and area assignments
+- **raw_materials**: Raw material inventory data
+- **finished_goods**: Finished goods inventory data
+
+## User Roles and Permissions
+
+| Role | Dashboard | Inventory View | User Management | Area Management |
+|------|-----------|----------------|-----------------|----------------|
+| Superadmin | ✅ All areas | ✅ All areas | ✅ | ✅ |
+| Area Sales Manager | ✅ Assigned area | ✅ Assigned area | ❌ | ❌ |
+| Area Sales Supervisor | ✅ Assigned area | ✅ Assigned area | ❌ | ❌ |
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/sync-user` - Sync Clerk user to database
+- `GET /api/auth/profile` - Get user profile
+- `PUT /api/auth/profile` - Update user profile
+- `GET /api/auth/check-user` - Check if user exists
+
+### Inventory
+- `GET /api/inventory/overview` - Get inventory overview statistics
+- `GET /api/inventory/raw-materials` - Get raw materials list
+- `GET /api/inventory/finished-goods` - Get finished goods list
+
+### Admin (Superadmin only)
+- `GET /api/admin/users` - Get all users
+- `PUT /api/admin/users` - Update user role/area
+- `GET /api/admin/areas` - Get all areas
+- `POST /api/admin/areas` - Create new area
+- `PUT /api/admin/areas` - Update area
+
+## Project Structure
+
+```
+src/
+├── app/                     # Next.js App Router pages
+│   ├── api/                # API routes
+│   ├── admin/              # Admin pages (superadmin only)
+│   ├── dashboard/          # Main dashboard
+│   ├── inventory/          # Inventory pages
+│   └── settings/           # Settings page
+├── components/             # React components
+│   ├── admin/              # Admin-specific components
+│   ├── auth/               # Authentication components
+│   ├── dashboard/          # Dashboard components
+│   ├── inventory/          # Inventory components
+│   ├── layout/             # Layout components
+│   ├── settings/           # Settings components
+│   └── ui/                 # shadcn/ui components
+├── hooks/                  # Custom React hooks
+├── lib/                    # Utility functions
+└── middleware.ts           # Clerk middleware
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deployment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Vercel (Recommended)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Connect your repository to Vercel
+2. Add environment variables in Vercel dashboard
+3. Deploy
 
-## Learn More
+### Manual Deployment
 
-To learn more about Next.js, take a look at the following resources:
+1. Build the application:
+   ```bash
+   npm run build
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Start the production server:
+   ```bash
+   npm start
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and ensure no TypeScript errors
+5. Submit a pull request
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This project is licensed under the MIT License.
