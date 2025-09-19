@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,7 +11,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Users, Edit, Save, X, Plus, MoreHorizontal, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Pagination } from '@/components/ui/pagination';
+import { AlertCircle, Users, Edit, Save, X, Plus, MoreHorizontal, Eye, EyeOff, UserPlus, MapPin, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
@@ -37,6 +37,19 @@ interface Area {
   is_active: boolean;
 }
 
+interface UserAreaMapping {
+  id: number;
+  user_profile_id: string;
+  area_id: number;
+  created_at: string;
+  master_areas: {
+    id: number;
+    name: string;
+    erp_id: number;
+    is_active: boolean;
+  };
+}
+
 const ROLES = [
   { value: 'superadmin', label: 'Super Admin' },
   { value: 'area sales manager', label: 'Area Sales Manager' },
@@ -55,47 +68,82 @@ function getRoleBadgeColor(role: string) {
 export function UserManagementTable() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [userAreaMappings, setUserAreaMappings] = useState<{[userId: string]: UserAreaMapping[]}>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{role: string, areaId: number | null}>({role: '', areaId: null});
   const [saving, setSaving] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [addForm, setAddForm] = useState<{email: string, fullName: string, areaId: number | null}>({email: '', fullName: '', areaId: null});
+  const [addForm, setAddForm] = useState<{username: string, email: string, fullName: string, areaId: number | null}>({username: '', email: '', fullName: '', areaId: null});
   const [adding, setAdding] = useState(false);
+  const [showAreasDialog, setShowAreasDialog] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [managingAreas, setManagingAreas] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+  const fetchData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        const [usersResponse, areasResponse] = await Promise.all([
-          fetch('/api/admin/users'),
-          fetch('/api/admin/areas')
-        ]);
-        
-        if (!usersResponse.ok || !areasResponse.ok) {
-          throw new Error('Failed to fetch data');
-        }
-        
-        const [usersResult, areasResult] = await Promise.all([
-          usersResponse.json(),
-          areasResponse.json()
-        ]);
-        
-        setUsers(usersResult.data);
-        setAreas(areasResult.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-      } finally {
-        setLoading(false);
       }
-    };
+      
+      const [usersResponse, areasResponse] = await Promise.all([
+        fetch('/api/admin/users'),
+        fetch('/api/admin/areas')
+      ]);
+      
+      if (!usersResponse.ok || !areasResponse.ok) {
+        throw new Error('Failed to fetch data');
+      }
+      
+      const [usersResult, areasResult] = await Promise.all([
+        usersResponse.json(),
+        areasResponse.json()
+      ]);
+      
+      setUsers(usersResult.data);
+      setAreas(areasResult.data);
+      
+      // Fetch user-area mappings for all users
+      const mappingsPromises = usersResult.data.map(async (user: UserProfile) => {
+        const response = await fetch(`/api/admin/user-area-mappings?userProfileId=${user.id}`);
+        if (response.ok) {
+          const result = await response.json();
+          return { userId: user.id, mappings: result.data };
+        }
+        return { userId: user.id, mappings: [] };
+      });
+      
+      const mappingsResults = await Promise.all(mappingsPromises);
+      const mappingsMap = mappingsResults.reduce((acc, { userId, mappings }) => {
+        acc[userId] = mappings;
+        return acc;
+      }, {} as {[userId: string]: UserAreaMapping[]});
+      
+      setUserAreaMappings(mappingsMap);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchData();
   }, []);
+
+  const handleRefresh = () => {
+    fetchData(true);
+  };
 
   const handleEdit = (user: UserProfile) => {
     setEditingUser(user.id);
@@ -154,10 +202,10 @@ export function UserManagementTable() {
   };
 
   const handleAddUser = async () => {
-    if (!addForm.email) {
+    if (!addForm.username.trim()) {
       toast({
         title: "Error",
-        description: "Email is required",
+        description: "Username is required",
         variant: "destructive",
       });
       return;
@@ -171,8 +219,9 @@ export function UserManagementTable() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: addForm.email,
-          fullName: addForm.fullName,
+          username: addForm.username.trim(),
+          email: addForm.email.trim() || null,
+          fullName: addForm.fullName.trim() || null,
           areaId: addForm.areaId
         }),
       });
@@ -188,7 +237,7 @@ export function UserManagementTable() {
       setUsers([result.data, ...users]);
       
       setShowAddDialog(false);
-      setAddForm({email: '', fullName: '', areaId: null});
+      setAddForm({username: '', email: '', fullName: '', areaId: null});
       
       toast({
         title: "Success",
@@ -231,10 +280,10 @@ export function UserManagementTable() {
         user.id === userId ? result.data : user
       ));
       
-      const action = !currentStatus ? 'activated' : 'deactivated';
+      // Use the message from the API response for better feedback
       toast({
         title: "Success",
-        description: `User ${action} successfully`,
+        description: result.message || `User ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
       });
     } catch (err) {
       console.error('Error updating user status:', err);
@@ -244,6 +293,120 @@ export function UserManagementTable() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleManageAreas = (userId: string) => {
+    setSelectedUserId(userId);
+    setShowAreasDialog(true);
+  };
+
+  const handleAddAreaMapping = async (areaId: number) => {
+    if (!selectedUserId) return;
+    
+    try {
+      setManagingAreas(true);
+      const response = await fetch('/api/admin/user-area-mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userProfileId: selectedUserId,
+          areaId: areaId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add area mapping');
+      }
+
+      const result = await response.json();
+      
+      // Update local state
+      setUserAreaMappings(prev => ({
+        ...prev,
+        [selectedUserId]: [...(prev[selectedUserId] || []), result.data]
+      }));
+      
+      toast({
+        title: "Success",
+        description: "Area mapping added successfully",
+      });
+    } catch (err) {
+      console.error('Error adding area mapping:', err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to add area mapping',
+        variant: "destructive",
+      });
+    } finally {
+      setManagingAreas(false);
+    }
+  };
+
+  const handleRemoveAreaMapping = async (areaId: number) => {
+    if (!selectedUserId) return;
+    
+    try {
+      setManagingAreas(true);
+      const response = await fetch('/api/admin/user-area-mappings', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userProfileId: selectedUserId,
+          areaId: areaId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove area mapping');
+      }
+      
+      // Update local state
+      setUserAreaMappings(prev => ({
+        ...prev,
+        [selectedUserId]: (prev[selectedUserId] || []).filter(mapping => mapping.area_id !== areaId)
+      }));
+      
+      toast({
+        title: "Success",
+        description: "Area mapping removed successfully",
+      });
+    } catch (err) {
+      console.error('Error removing area mapping:', err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to remove area mapping',
+        variant: "destructive",
+      });
+    } finally {
+      setManagingAreas(false);
+    }
+  };
+
+  // Pagination logic
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return users.slice(startIndex, endIndex);
+  }, [users, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(users.length / pageSize);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setEditingUser(null); // Cancel any editing when changing pages
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    // Reset to first page when changing page size
+    setCurrentPage(1);
+    setEditingUser(null); // Cancel any editing when changing page size
   };
 
   if (loading) {
@@ -292,7 +455,17 @@ export function UserManagementTable() {
             <Users className="h-5 w-5 mr-2" />
             User Management
           </CardTitle>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="h-4 w-4 mr-2" />
@@ -304,18 +477,27 @@ export function UserManagementTable() {
                 <DialogTitle>Add New User</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="user-email">Email Address</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="user-username">Username</Label>
+                  <Input
+                    id="user-username"
+                    value={addForm.username}
+                    onChange={(e) => setAddForm({...addForm, username: e.target.value})}
+                    placeholder="Enter username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-email">Email Address (optional)</Label>
                   <Input
                     id="user-email"
                     type="email"
                     value={addForm.email}
                     onChange={(e) => setAddForm({...addForm, email: e.target.value})}
-                    placeholder="Enter email address"
+                    placeholder="Enter email address (optional)"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="user-name">Full Name</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="user-name">Full Name (optional)</Label>
                   <Input
                     id="user-name"
                     value={addForm.fullName}
@@ -323,17 +505,17 @@ export function UserManagementTable() {
                     placeholder="Enter full name (optional)"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="user-area">Initial Area Assignment</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="user-area">Initial Area Assignment (optional)</Label>
                   <Select 
-                    value={addForm.areaId?.toString() || ''} 
-                    onValueChange={(value) => setAddForm({...addForm, areaId: value ? parseInt(value) : null})}
+                    value={addForm.areaId?.toString() || 'none'} 
+                    onValueChange={(value) => setAddForm({...addForm, areaId: value === 'none' ? null : parseInt(value)})}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select area (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Area</SelectItem>
+                      <SelectItem value="none">No Area</SelectItem>
                       {areas.filter(area => area.is_active).map((area) => (
                         <SelectItem key={area.id} value={area.id.toString()}>
                           {area.name} (ID: {area.erp_id})
@@ -347,7 +529,7 @@ export function UserManagementTable() {
                     variant="outline"
                     onClick={() => {
                       setShowAddDialog(false);
-                      setAddForm({email: '', fullName: '', areaId: null});
+                      setAddForm({username: '', email: '', fullName: '', areaId: null});
                     }}
                     disabled={adding}
                   >
@@ -359,7 +541,8 @@ export function UserManagementTable() {
                 </div>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -376,12 +559,12 @@ export function UserManagementTable() {
                   <TableHead>User</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Area Assignment</TableHead>
+                  <TableHead>Area Assignments</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {paginatedUsers.map((user) => (
                   <TableRow key={user.id} className="hover:bg-gray-50">
                     <TableCell>
                       <div className="flex flex-col">
@@ -417,14 +600,14 @@ export function UserManagementTable() {
                     <TableCell>
                       {editingUser === user.id ? (
                         <Select 
-                          value={editForm.areaId?.toString() || ''} 
-                          onValueChange={(value) => setEditForm({...editForm, areaId: value ? parseInt(value) : null})}
+                          value={editForm.areaId?.toString() || 'none'} 
+                          onValueChange={(value) => setEditForm({...editForm, areaId: value === 'none' ? null : parseInt(value)})}
                         >
                           <SelectTrigger className="w-48">
                             <SelectValue placeholder="Select area" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No Area</SelectItem>
+                            <SelectItem value="none">No Area</SelectItem>
                             {areas.filter(area => area.is_active).map((area) => (
                               <SelectItem key={area.id} value={area.id.toString()}>
                                 {area.name} (ID: {area.erp_id})
@@ -434,13 +617,28 @@ export function UserManagementTable() {
                         </Select>
                       ) : (
                         <div>
-                          {user.master_areas ? (
-                            <div className="flex flex-col">
-                              <span className="font-medium">{user.master_areas.name}</span>
-                              <span className="text-xs text-gray-500">ID: {user.master_areas.erp_id}</span>
+                          {/* Show primary area from user profile */}
+                          {user.master_areas && (
+                            <div className="mb-2">
+                              <Badge variant="outline" className="mr-1">
+                                {user.master_areas.name} (Primary)
+                              </Badge>
+                            </div>
+                          )}
+                          
+                          {/* Show additional areas from mappings */}
+                          {userAreaMappings[user.id] && userAreaMappings[user.id].length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {userAreaMappings[user.id].map((mapping) => (
+                                <Badge key={mapping.id} variant="secondary" className="text-xs">
+                                  {mapping.master_areas.name}
+                                </Badge>
+                              ))}
                             </div>
                           ) : (
-                            <span className="text-gray-500">No area assigned</span>
+                            !user.master_areas && (
+                              <span className="text-gray-500">No areas assigned</span>
+                            )
                           )}
                         </div>
                       )}
@@ -478,6 +676,10 @@ export function UserManagementTable() {
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleManageAreas(user.id)}>
+                              <MapPin className="h-4 w-4 mr-2" />
+                              Manage Areas
+                            </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => handleToggleUserStatus(user.id, user.is_active)}
                               className={user.is_active ? "text-red-600" : "text-green-600"}
@@ -506,11 +708,142 @@ export function UserManagementTable() {
         )}
         
         {users.length > 0 && (
-          <div className="mt-4 text-sm text-gray-500 text-center">
-            Total users: {users.length}
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={users.length}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            pageSizeOptions={[5, 10, 15]}
+          />
         )}
       </CardContent>
+      
+      {/* Areas Management Dialog */}
+      <Dialog open={showAreasDialog} onOpenChange={setShowAreasDialog}>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Manage Area Assignments</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-1">
+            <div className="space-y-6">
+              {selectedUserId && (
+                <>
+                  {/* Current Area Assignments Section */}
+                  <div>
+                    <h4 className="font-medium mb-3 text-lg">Current Area Assignments</h4>
+                    <div className="space-y-3">
+                      {/* Show primary area */}
+                      {users.find(u => u.id === selectedUserId)?.master_areas && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <Badge variant="outline" className="w-fit">
+                              {users.find(u => u.id === selectedUserId)?.master_areas?.name} (Primary)
+                            </Badge>
+                            <span className="text-sm text-gray-500">
+                              ID: {users.find(u => u.id === selectedUserId)?.master_areas?.erp_id}
+                            </span>
+                          </div>
+                          <span className="text-xs text-blue-600 sm:text-right">
+                            Primary area cannot be removed here
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Show additional areas */}
+                      {userAreaMappings[selectedUserId] && userAreaMappings[selectedUserId].length > 0 ? (
+                        userAreaMappings[selectedUserId].map((mapping) => (
+                          <div key={mapping.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 rounded-lg border">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                              <Badge variant="secondary" className="w-fit">
+                                {mapping.master_areas.name}
+                              </Badge>
+                              <span className="text-sm text-gray-500">
+                                ID: {mapping.master_areas.erp_id}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRemoveAreaMapping(mapping.area_id)}
+                              disabled={managingAreas}
+                              className="w-full sm:w-auto"
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        !users.find(u => u.id === selectedUserId)?.master_areas && (
+                          <p className="text-gray-500 italic text-center py-4">No additional areas assigned</p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Add New Area Assignment Section */}
+                  <div>
+                    <h4 className="font-medium mb-3 text-lg">Add New Area Assignment</h4>
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {areas
+                        .filter(area => {
+                          const user = users.find(u => u.id === selectedUserId);
+                          const isAlreadyAssigned = userAreaMappings[selectedUserId]?.some(m => m.area_id === area.id);
+                          const isPrimaryArea = user?.area_id === area.id;
+                          return area.is_active && !isAlreadyAssigned && !isPrimaryArea;
+                        })
+                        .map((area) => (
+                          <div key={area.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium text-sm sm:text-base">{area.name}</span>
+                              <span className="text-sm text-gray-500">ID: {area.erp_id}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddAreaMapping(area.id)}
+                              disabled={managingAreas}
+                              className="w-full sm:w-auto"
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        ))}
+                      
+                      {areas.filter(area => {
+                        const user = users.find(u => u.id === selectedUserId);
+                        const isAlreadyAssigned = userAreaMappings[selectedUserId]?.some(m => m.area_id === area.id);
+                        const isPrimaryArea = user?.area_id === area.id;
+                        return area.is_active && !isAlreadyAssigned && !isPrimaryArea;
+                      }).length === 0 && (
+                        <p className="text-gray-500 italic text-center py-4">
+                          No additional areas available to assign
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          
+          {/* Fixed bottom section */}
+          <div className="flex-shrink-0 pt-4 border-t mt-4">
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAreasDialog(false);
+                  setSelectedUserId(null);
+                }}
+                className="w-full sm:w-auto"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

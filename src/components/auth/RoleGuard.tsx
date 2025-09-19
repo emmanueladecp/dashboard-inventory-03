@@ -91,7 +91,7 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
             <Lock className="h-12 w-12 text-gray-400 mb-4" />
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Restricted</h2>
             <p className="text-gray-600 mb-4">
-              You don't have permission to access this page. This area is restricted to {allowedRoles.join(', ')} users.
+              You don&apos;t have permission to access this page. This area is restricted to {allowedRoles.join(', ')} users.
             </p>
             <p className="text-sm text-gray-500 mb-4">
               Your current role: <span className="font-medium">{userProfile?.role || 'Unknown'}</span>

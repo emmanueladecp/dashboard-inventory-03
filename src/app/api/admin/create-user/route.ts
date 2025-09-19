@@ -16,6 +16,17 @@ async function checkSuperadminAccess(userId: string) {
   return true;
 }
 
+// Define payload for Clerk user creation instead of using any
+interface ClerkUserCreatePayload {
+  username: string;
+  password: string;
+  first_name?: string;
+  last_name?: string;
+  skip_password_checks?: boolean;
+  skip_password_requirement?: boolean;
+  email_address?: string[];
+}
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -31,27 +42,33 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, fullName, areaId } = body;
+    const { username, email, fullName, areaId } = body as { username: string; email?: string; fullName?: string; areaId?: number };
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    if (!username || !username.trim()) {
+      return NextResponse.json({ error: 'Username is required' }, { status: 400 });
     }
 
     // Create user in Clerk using Clerk Backend API
+    const clerkUserData: ClerkUserCreatePayload = {
+      username: username.trim(),
+      password: 'newUserInv@2025',
+      first_name: fullName?.split(' ')[0] || '',
+      last_name: fullName?.split(' ').slice(1).join(' ') || '',
+      skip_password_checks: true,
+      skip_password_requirement: false
+    };
+
+    // Add email only if provided
+    if (email && email.trim()) {
+      clerkUserData.email_address = [email.trim()];
+    }
     const clerkResponse = await fetch('https://api.clerk.dev/v1/users', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        email_address: [email],
-        password: 'newUserInv@2025',
-        first_name: fullName?.split(' ')[0] || '',
-        last_name: fullName?.split(' ').slice(1).join(' ') || '',
-        skip_password_checks: true,
-        skip_password_requirement: false
-      }),
+      body: JSON.stringify(clerkUserData),
     });
 
     if (!clerkResponse.ok) {
@@ -69,8 +86,8 @@ export async function POST(request: Request) {
       .from('user_profiles')
       .insert({
         clerk_user_id: clerkUser.id,
-        email,
-        full_name: fullName,
+        email: email?.trim() || null,
+        full_name: fullName?.trim() || null,
         role: 'area sales supervisor',
         area_id: areaId || null,
         is_active: true

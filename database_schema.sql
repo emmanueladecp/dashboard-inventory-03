@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS master_areas (
 CREATE TABLE IF NOT EXISTS user_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     clerk_user_id VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
     full_name VARCHAR(255),
     role VARCHAR(50) CHECK (role IN ('superadmin', 'area sales manager', 'area sales supervisor')) DEFAULT 'area sales supervisor',
     area_id INTEGER REFERENCES master_areas(id) ON DELETE SET NULL,

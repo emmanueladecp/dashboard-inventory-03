@@ -97,12 +97,9 @@ export async function POST() {
       user: data,
       action: 'created_new'
     }, { status: 201 });
-  } catch (error: any) {
-    console.error('💥 Sync user error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error.message,
-      stack: error.stack
-    }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('Sync user API error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

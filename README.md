@@ -5,12 +5,16 @@ A modern web application for monitoring stock quantities of raw materials and fi
 ## Features
 
 - **Real-time Inventory Monitoring**: Track stock levels for raw materials and finished goods
+- **External API Integration**: Seamless integration with iDempiere ERP system for finished goods
+- **Client-side Data Persistence**: IndexedDB storage for offline-capable finished goods data
 - **Role-based Access Control**: Three user roles with different permissions
   - Superadmin: Full access to user management, area management, and all inventory
   - Area Sales Manager: Access to assigned area inventory and team management
   - Area Sales Supervisor: View access to assigned area inventory
 - **User Management**: Superadmins can assign roles and areas to users
 - **Area Management**: Manage different geographical or organizational areas
+- **Data Lifecycle Management**: Automatic data sync on login, clear on logout
+- **Advanced Search & Filtering**: Search by product name/code and filter by categories
 - **Responsive Design**: Mobile-first approach with responsive UI
 - **Secure Authentication**: Powered by Clerk with user profile synchronization
 
@@ -55,6 +59,10 @@ A modern web application for monitoring stock quantities of raw materials and fi
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+   # iDempiere API Configuration
+   NEXT_IDEMPIERE_URL=https://ibpr.berasraja.com
+   IDEMPIERE_TOKEN=your_idempiere_jwt_token
    ```
 
 4. **Set up the database**
@@ -96,6 +104,10 @@ The application uses four main tables:
 - `GET /api/inventory/overview` - Get inventory overview statistics
 - `GET /api/inventory/raw-materials` - Get raw materials list
 - `GET /api/inventory/finished-goods` - Get finished goods list
+
+### Finished Goods (iDempiere Integration)
+- `GET /api/finished-goods/sync` - Fetch finished goods from iDempiere API
+- `POST /api/finished-goods/sync` - Manually trigger sync of finished goods data
 
 ### Admin (Superadmin only)
 - `GET /api/admin/users` - Get all users

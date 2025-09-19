@@ -46,11 +46,9 @@ export async function GET() {
       exists: true,
       user: existingUser
     }, { status: 200 });
-  } catch (error: any) {
-    console.error('Check user error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error.message
-    }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('Check user API error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

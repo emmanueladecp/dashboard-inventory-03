@@ -41,12 +41,9 @@ export async function GET() {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
       emailPolicy: 'Email can be NULL - this is expected and OK'
     }, { status: 200 });
-  } catch (error: any) {
-    console.error('Test database error:', error);
-    return NextResponse.json({ 
-      error: 'Test failed', 
-      details: error.message,
-      stack: error.stack
-    }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('Test DB API error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

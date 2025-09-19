@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Pagination } from '@/components/ui/pagination';
 import { AlertCircle, MapPin, Plus, Edit, Save, X, MoreHorizontal, Eye, EyeOff } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface Area {
   id: number;
@@ -33,6 +34,8 @@ export function AreaManagementTable() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addForm, setAddForm] = useState<{name: string, erpId: string}>({name: '', erpId: ''});
   const [adding, setAdding] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -168,6 +171,27 @@ export function AreaManagementTable() {
     }
   };
 
+  // Pagination logic
+  const paginatedAreas = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return areas.slice(startIndex, endIndex);
+  }, [areas, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(areas.length / pageSize);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setEditingArea(null); // Cancel any editing when changing pages
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    // Reset to first page when changing page size
+    setCurrentPage(1);
+    setEditingArea(null); // Cancel any editing when changing page size
+  };
+
   const handleToggleStatus = async (areaId: number, currentStatus: boolean) => {
     try {
       const response = await fetch('/api/admin/areas', {
@@ -265,7 +289,7 @@ export function AreaManagementTable() {
                 <DialogTitle>Add New Area</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="area-name">Area Name</Label>
                   <Input
                     id="area-name"
@@ -274,7 +298,7 @@ export function AreaManagementTable() {
                     placeholder="Enter area name"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="area-erp-id">ERP ID</Label>
                   <Input
                     id="area-erp-id"
@@ -309,7 +333,7 @@ export function AreaManagementTable() {
           <div className="text-center py-8 text-gray-500">
             <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />
             <p className="text-lg font-medium">No areas found</p>
-            <p className="text-sm">Click "Add Area" to create your first area</p>
+            <p className="text-sm">Click &quot;Add Area&quot; to create your first area</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -324,7 +348,7 @@ export function AreaManagementTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {areas.map((area) => (
+                {paginatedAreas.map((area) => (
                   <TableRow key={area.id} className="hover:bg-gray-50">
                     <TableCell>
                       {editingArea === area.id ? (
@@ -420,9 +444,15 @@ export function AreaManagementTable() {
         )}
         
         {areas.length > 0 && (
-          <div className="mt-4 text-sm text-gray-500 text-center">
-            Total areas: {areas.length}
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={areas.length}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            pageSizeOptions={[5, 10, 15]}
+          />
         )}
       </CardContent>
     </Card>

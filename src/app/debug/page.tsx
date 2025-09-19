@@ -5,7 +5,8 @@ import { useState } from 'react';
 
 export default function DebugPage() {
   const { user, isLoaded, isSignedIn } = useUser();
-  const [syncResult, setSyncResult] = useState<any>(null);
+  type SyncResult = { status: number; data: unknown } | { error: string };
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const testSync = async () => {
@@ -20,8 +21,9 @@ export default function DebugPage() {
       
       const result = await response.json();
       setSyncResult({ status: response.status, data: result });
-    } catch (error: any) {
-      setSyncResult({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setSyncResult({ error: message });
     }
     setLoading(false);
   };
@@ -35,8 +37,9 @@ export default function DebugPage() {
       
       const result = await response.json();
       setSyncResult({ status: response.status, data: result });
-    } catch (error: any) {
-      setSyncResult({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setSyncResult({ error: message });
     }
     setLoading(false);
   };
@@ -50,8 +53,9 @@ export default function DebugPage() {
       
       const result = await response.json();
       setSyncResult({ status: response.status, data: result });
-    } catch (error: any) {
-      setSyncResult({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setSyncResult({ error: message });
     }
     setLoading(false);
   };

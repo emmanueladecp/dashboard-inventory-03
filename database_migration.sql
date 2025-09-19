@@ -1,7 +1,3 @@
--- Database migration to restructure areas table and add user-area mapping
--- This migration should be run after the initial database_schema.sql
-
--- 1. Add is_active column to master_areas table with default value true
 ALTER TABLE master_areas ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
 -- 2. Add is_active column to user_profiles table with default value true
@@ -24,6 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_master_areas_is_active ON master_areas(is_active)
 CREATE INDEX IF NOT EXISTS idx_user_profiles_is_active ON user_profiles(is_active);
 
 -- 5. Create trigger for automatic timestamp updates on user_area_mappings
+DROP TRIGGER update_user_area_mappings_updated_at ON user_area_mappings;
 CREATE TRIGGER update_user_area_mappings_updated_at 
 BEFORE UPDATE ON user_area_mappings 
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -61,7 +58,7 @@ CREATE POLICY "Users can view their active assigned areas" ON master_areas
                 WHERE clerk_user_id = auth.jwt() ->> 'sub'
             ) OR 
             id IN (
-                SELECT area_id FROM user_area_mappings uam
+                SELECT up.area_id FROM user_area_mappings uam
                 JOIN user_profiles up ON uam.user_profile_id = up.id
                 WHERE up.clerk_user_id = auth.jwt() ->> 'sub'
             )
@@ -94,7 +91,7 @@ CREATE POLICY "Users can view raw materials from their active areas" ON raw_mate
                     WHERE clerk_user_id = auth.jwt() ->> 'sub' AND is_active = TRUE
                 ) OR 
                 ma.id IN (
-                    SELECT area_id FROM user_area_mappings uam
+                    SELECT up.area_id FROM user_area_mappings uam
                     JOIN user_profiles up ON uam.user_profile_id = up.id
                     WHERE up.clerk_user_id = auth.jwt() ->> 'sub' AND up.is_active = TRUE
                 )
@@ -119,7 +116,7 @@ CREATE POLICY "Users can view finished goods from their active areas" ON finishe
                     WHERE clerk_user_id = auth.jwt() ->> 'sub' AND is_active = TRUE
                 ) OR 
                 ma.id IN (
-                    SELECT area_id FROM user_area_mappings uam
+                    SELECT up.area_id FROM user_area_mappings uam
                     JOIN user_profiles up ON uam.user_profile_id = up.id
                     WHERE up.clerk_user_id = auth.jwt() ->> 'sub' AND up.is_active = TRUE
                 )
@@ -131,14 +128,3 @@ CREATE POLICY "Users can view finished goods from their active areas" ON finishe
             AND role = 'superadmin' AND is_active = TRUE
         )
     );
-
--- 12. Migrate existing user area assignments to the new mapping table
--- This will create mappings for users who already have area_id set
-INSERT INTO user_area_mappings (user_profile_id, area_id)
-SELECT id, area_id 
-FROM user_profiles 
-WHERE area_id IS NOT NULL
-ON CONFLICT (user_profile_id, area_id) DO NOTHING;
-
--- Note: The area_id column in user_profiles is kept for backward compatibility
--- but the new user_area_mappings table should be used for multi-area assignments
